@@ -1,5 +1,5 @@
 import config from "config.json";
-import { type Message } from "discord.js";
+import { type Message } from "@deksdeveloper/discord.js-self-bot";
 import cache from "./cache";
 
 const url =

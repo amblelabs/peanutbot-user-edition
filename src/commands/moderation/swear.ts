@@ -1,5 +1,5 @@
 import config from "../../../config.json"; // 👈 Make sure this path is correct for your file structure!
-import type { Message } from "discord.js";
+import type { Message } from "@deksdeveloper/discord.js-self-bot";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 const data: CmdData = {
@@ -8,7 +8,7 @@ const data: CmdData = {
 
 async function onMessage(ctx: Ctx, message: Message) {
     // 1. Guard: Ignore bots, DMs (no guild), and unsendable channels
-    if (!message.inGuild() || !message.channel.isSendable() || message.author.bot) return;
+    if (!message.inGuild() || !message.channel.isText() || message.author.bot) return;
 
     // 3. Check if they pinged the bot AND said the trigger word (lowercased!)
     const swear = message.mentions.has(ctx.client.user!.id) && message.content.includes("BITCH!");

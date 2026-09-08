@@ -1,5 +1,5 @@
 import config from "config.json";
-import type { Message } from "discord.js";
+import type { Message } from "@deksdeveloper/discord.js-self-bot";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 import rnd from "~/util/rnd";
 
@@ -8,13 +8,16 @@ const data: CmdData = {
 };
 
 async function onMessage(ctx: Ctx, message: Message) {
-  if (!message.channel.isSendable() || !message.mentions.has(ctx.client.user!))
-    return;
+  const isMentioned =
+      ctx.client.user && message.mentions.users.has(ctx.client.user.id);
 
-  let content = message.content.toLowerCase();
+  if (!isMentioned) return;
 
-  if (content.includes("?") && content.includes("agree"))
-    message.reply(rnd.pickRandom(config.fun.agree));
+  const content = message.content.toLowerCase();
+
+  if (content.includes("?") && content.includes("agree")) {
+    await message.reply(rnd.pickRandom(config.fun.agree));
+  }
 }
 
 export default {

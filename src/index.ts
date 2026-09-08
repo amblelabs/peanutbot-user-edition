@@ -1,14 +1,4 @@
-import {
-  ActivityType,
-  Client,
-  Events,
-  GatewayIntentBits,
-  Message,
-  MessageComponentInteraction,
-  REST,
-  Routes,
-  SlashCommandBuilder,
-} from "discord.js";
+import { Client, CustomStatus } from "@deksdeveloper/discord.js-self-bot";
 import config from "../config.json.js";
 import env from "../env.json.js";
 import type { Cmd, Ctx } from "./util/base.ts";
@@ -19,18 +9,13 @@ import { Sequelize } from "sequelize";
 import { oramaStaticClient } from "./util/wikisearch2.ts";
 import { create as createOrama } from "@orama/orama";
 
-// Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");
 
+// Initialize user bot client natively
+const client = new Client();
+
 const ctx: Ctx = {
-  client: new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMembers,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent,
-    ],
-  }),
+  client,
   sql: new Sequelize({
     dialect: "sqlite",
     logging: (sql) => logger.debug(sql),
@@ -39,40 +24,34 @@ const ctx: Ctx = {
   sleeping: false,
   lastUse: Date.now(),
 
-  wakeUp: (message?: Message) => {
+  wakeUp: (message?: any) => {
     ctx.sleeping = false;
-    ctx.client.user?.setStatus("online");
-    ctx.client.user?.setPresence({
-      status: "online",
-      activities: [
-        {
-          name: "?help",
-          type: ActivityType.Watching,
-        },
-      ],
-    });
 
-    if (message && message.channel.isSendable())
-      message.channel.send({ stickers: [config.fun.sleep.awakeSticker] });
+    // Set standard Discord presence correctly
+    ctx.client.user?.setStatus("online");
+    const status = new CustomStatus(ctx.client).setState("Watching ?help");
+    ctx.client.user?.setActivity(status);
+
+    // If triggered by a message, reply in the same channel
+    if (message && message.channel) {
+      message.channel.send({
+        stickers: [config.fun.sleep.awakeSticker],
+      }).catch((err: any) => logger.error("Failed to send awake sticker:", err));
+    }
   },
+
   fallAsleep: () => {
     ctx.sleeping = true;
-    ctx.client.user?.setPresence({
-      status: "idle",
-      activities: [
-        {
-          name: "dreams...",
-          type: ActivityType.Watching,
-        },
-      ],
-    });
+
+    ctx.client.user?.setStatus("idle");
+    const status = new CustomStatus(ctx.client).setState("Watching dreams...");
+    ctx.client.user?.setActivity(status);
   },
 
   search: oramaStaticClient({
     initOrama: () => {
       return createOrama({
         schema: { _: "string" },
-        // https://docs.orama.com/docs/orama-js/supported-languages
         language: "english",
       });
     },
@@ -81,81 +60,54 @@ const ctx: Ctx = {
   }),
 };
 
-ctx.client.once(Events.ClientReady, async (readyClient) => {
-  for (const cmd of Object.values(handlers)) {
-    if (cmd?.setup) cmd.setup(ctx);
-  }
+const handlers: Record<string, Cmd> = {};
 
-  ctx.sql.authenticate();
-  ctx.wakeUp();
-
-  logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
-});
-
-const handlers: Dict<Cmd> = {};
-const slashCommands: any[] = [];
-
+// Command loader
 const foldersPath = path.join(__dirname, "commands");
 const commandFolders = fs.readdirSync(foldersPath);
 
 for (const folder of commandFolders) {
   const commandsPath = path.join(foldersPath, folder);
   const commandFiles = fs
-    .readdirSync(commandsPath)
-    .filter((file) => file.endsWith(".ts"));
+      .readdirSync(commandsPath)
+      .filter((file) => file.endsWith(".ts"));
 
   for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath).default;
 
-    // Set a new item in the Collection with the key as the command name and the value as the exported module
-    if (command?.data) {
+    if (command?.data?.name) {
       handlers[command.data.name] = command;
-
-      if (command.slash)
-        slashCommands.push(
-          command
-            .slash(new SlashCommandBuilder().setName(command.data.name))
-            .toJSON(),
-        );
     } else {
       logger.warn(
-        `The command at ${filePath} is missing a required "data" and "execute" property.`,
+          `The command at ${filePath} is missing a required "data" property.`,
       );
     }
   }
 }
 
-const rest = new REST().setToken(env.token);
-
-// and deploy your commands!
-(async () => {
-  try {
-    logger.info(`Started refreshing application (/) commands.`);
-
-    for (const guildId of config.guildId) {
-      // The put method is used to fully refresh all commands in the guild with the current set
-      const data = (await rest.put(
-        Routes.applicationGuildCommands(config.clientId, guildId),
-        { body: slashCommands },
-      )) as any[];
-
-      logger.info(`Reloaded ${data.length} application (/) commands.`);
-    }
-  } catch (error) {
-    // And of course, make sure you catch and log any errors!
-    logger.error(error);
+// Client Ready Event
+ctx.client.once("ready", async () => {
+  for (const cmd of Object.values(handlers)) {
+    if (cmd?.setup) cmd.setup(ctx);
   }
-})();
 
-ctx.client.on(Events.MessageCreate, async (message) => {
-  if (message.content.charAt(0) !== "?") {
-    const content = message.content;
+  await ctx.sql.authenticate();
+  ctx.wakeUp();
+
+  logger.info(`Ready! User bot logged in as ${ctx.client.user?.tag}`);
+});
+
+// Message Listener (Updated from "message" to "messageCreate")
+ctx.client.on("messageCreate", async (message: any) => {
+  const content = message.content || "";
+
+  if (!content.startsWith("?")) {
     if (
-      ctx.sleeping &&
-      content.length > 1 &&
-      content === content.toUpperCase() &&
-      content.includes("!")
+        ctx.sleeping &&
+        content.length > 1 &&
+        content === content.toUpperCase() &&
+        content.includes("!")
     ) {
       ctx.wakeUp(message);
     }
@@ -163,89 +115,78 @@ ctx.client.on(Events.MessageCreate, async (message) => {
     for (const handler of Object.values(handlers)) {
       if (handler?.onMessage) handler.onMessage(ctx, message);
     }
-
     return;
   }
 
   ctx.lastUse = Date.now();
 
-  if (!message.channel.isSendable()) return;
-
-  const command = message.content.substring(1);
+  const command = content.substring(1);
   const args = command.split(" ");
   const first = args[0];
 
   const handler = handlers[first];
 
   async function handleCommand(handler?: Cmd) {
-    if (handler?.execute)
-      handler.execute(ctx, message, message.channel, args.slice(1));
+    if (handler?.execute) {
+      // Use message.channel.id or message.channelId
+      handler.execute(ctx, message, message.channel.id, args.slice(1));
+    }
   }
 
   if (ctx.sleeping) {
     ctx.wakeUp();
-    message.channel.send("...");
+    message.channel.send({ content: "..." }).catch(() => {});
+
     setTimeout(
-      async () => handleCommand(handler),
-      config.fun.sleep.cmdDelay * 1000,
+        async () => handleCommand(handler),
+        config.fun.sleep.cmdDelay * 1000,
     );
   } else {
     handleCommand(handler);
   }
 });
 
-ctx.client.on(Events.InteractionCreate, async (interaction) => {
-  if (ctx.sleeping) {
-    ctx.wakeUp();
-  }
-
-  ctx.lastUse = Date.now();
-
-  let handlerId: string | undefined;
-  if (interaction.isButton() || interaction.isModalSubmit()) {
-    const ic = interaction.customId.indexOf(":");
-    handlerId = interaction.customId.substring(0, ic);
-  } else if (interaction.isChatInputCommand() || interaction.isAutocomplete()) {
-    handlerId = interaction.commandName;
-  }
-
-  if (!handlerId) return;
-
-  let handler = handlers[handlerId];
-  if (handler?.onInteraction) handler.onInteraction(ctx, interaction);
-});
-
+// Timers
 function tickMinute() {
   const now = Date.now();
-  if (now - ctx.lastUse > config.fun.sleep.timer * 60 * 1000) {
+  if (!ctx.sleeping && (now - ctx.lastUse > config.fun.sleep.timer * 60 * 1000)) {
     ctx.fallAsleep();
   }
 }
 
 async function tickSleepSticker() {
-  if (ctx.sleeping) {
-    const channel = ctx.client.channels.cache.get(config.fun.sleep.channel);
-    if (channel?.isSendable())
-      await channel.send({ stickers: [config.fun.sleep.sticker] });
+  if (ctx.sleeping && config.fun.sleep.channel) {
+    try {
+      // Fetch channel directly if it is not in cache (common for DMs/GDMs)
+      const channel: any =
+          ctx.client.channels.cache.get(config.fun.sleep.channel) ||
+          (await ctx.client.channels.fetch(config.fun.sleep.channel));
+
+      if (channel && typeof channel.send === "function") {
+        await channel.send({
+          stickers: [config.fun.sleep.sticker],
+        });
+      }
+    } catch (err) {
+      logger.error("Failed to send sleep sticker:", err);
+    }
   }
 }
 
 process.on("uncaughtException", (err) => {
   logger.fatal("Uncaught Exception:");
   logger.error(err);
-
   process.exit(1);
 });
 
 process.on("unhandledRejection", (err) => {
   logger.fatal("Unhandled Rejection:");
   logger.error(err);
-
   process.exit(1);
 });
 
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
 
-// Log in to Discord with your client's token
+// Log in using user token
 ctx.client.login(env.token);

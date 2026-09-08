@@ -1,4 +1,4 @@
-import { AttachmentBuilder, type BaseMessageOptions, type Message } from "discord.js";
+import {MessageAttachment, type MessageOptions, type Message } from "@deksdeveloper/discord.js-self-bot";
 
 type CachedUrl = [ time: number, url: string ];
 
@@ -11,12 +11,12 @@ function cacheFiles(url: string, message: Message) {
     });
 }
 
-async function uncache(url: string, send: (options: BaseMessageOptions) => Promise<Message>) {
+async function uncache(url: string, send: (options: MessageOptions) => Promise<Message>) {
     const now = Date.now();
     const cached = cache[url];
 
     if (!cached || now > cached[0] + lifetime) {
-        const msg = await send({ files: [new AttachmentBuilder(url)] });
+        const msg = await send({ files: [new MessageAttachment(url)] });
         cacheFiles(url, msg);
         
         return;

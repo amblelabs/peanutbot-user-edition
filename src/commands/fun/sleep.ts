@@ -1,5 +1,5 @@
 import config from "config.json";
-import type { Message, SendableChannels } from "discord.js";
+import type { Message } from "@deksdeveloper/discord.js-self-bot";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 import wrath from "~/util/angry";
 
@@ -8,16 +8,16 @@ const data: CmdData = {
 };
 
 async function execute(
-  ctx: Ctx,
-  message: Message,
-  channel: SendableChannels,
-  args: string[],
+    ctx: Ctx,
+    message: Message,
+    channelId: string,
+    args: string[],
 ) {
   if (config.fun.sleep.enabled) {
     const hasRole = message.member?.roles.cache.has(config.fun.sleep.role);
 
     if (!hasRole) {
-      wrath.sendAngry(message);
+      await wrath.sendAngry(message);
       return;
     }
 

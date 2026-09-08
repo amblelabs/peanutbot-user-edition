@@ -1,21 +1,24 @@
-import {type Message, MessageFlags, type SendableChannels} from "discord.js";
+import type { Message } from "@deksdeveloper/discord.js-self-bot";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 const data: CmdData = {
-    name: 'xkcd',
+    name: "xkcd",
 };
 
-async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
+async function execute(
+    ctx: Ctx,
+    message: Message,
+    channelId: string,
+    args: string[],
+) {
     const comicNum = args[0];
 
-    // Ensure a valid numeric argument was provided
     if (!comicNum || !/^\d+$/.test(comicNum)) {
         await message.reply("Please provide a valid comic number");
         return;
     }
 
     try {
-        // Fetch metadata from the official xkcd API
         const response = await fetch(`https://xkcd.com/${comicNum}/info.0.json`);
 
         if (!response.ok) {
@@ -33,7 +36,7 @@ async function execute(ctx: Ctx, message: Message, channel: SendableChannels, ar
         await message.reply({
             content: `${comicData.title}\n${comicData.alt}\nhttps://xkcd.com/${comicData.num}/`,
             files: [{ attachment: comicData.img, name: `xkcd-${comicData.num}.png` }],
-            flags: [MessageFlags.SuppressEmbeds]
+            flags: ["SUPPRESS_EMBEDS"],
         });
     } catch (error) {
         console.error("Error fetching xkcd comic:", error);
