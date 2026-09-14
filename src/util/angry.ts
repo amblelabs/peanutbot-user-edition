@@ -8,8 +8,8 @@ const url =
 async function sendAngry(message: Message) {
   cache.uncache(url, (m) => {
     return message.reply({
-      content: config.fun.wrath.message,
-      files: [m],
+      ...m,
+      content: config.fun.wrath.message
     });
   });
 }
