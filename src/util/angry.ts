@@ -7,12 +7,12 @@ const url =
 
 async function sendAngry(message: Message) {
   cache.uncache(url, (m) => {
-    message.reply({
+    return message.reply({
       content: config.fun.wrath.message,
       files: [m],
     });
   });
-};
+}
 export default {
   sendAngry,
 };
