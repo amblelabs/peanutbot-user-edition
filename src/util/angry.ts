@@ -6,12 +6,14 @@ const url =
   "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/angry.png";
 
 async function sendAngry(message: Message) {
-  cache.uncache(url, (m) => {
-    return message.reply({
-      ...m,
-      content: config.fun.wrath.message
-    });
-  });
+  await cache.uncache(url, (options) =>
+      message.reply({
+        ...options,
+        content: options.content
+            ? `${config.fun.wrath.message}\n${options.content}`
+            : config.fun.wrath.message,
+      })
+  );
 }
 export default {
   sendAngry,
